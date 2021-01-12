@@ -1,0 +1,16 @@
+/ipv6 firewall filter
+add action=drop chain=input comment="drop invalid connections" connection-state=invalid
+add action=accept chain=input comment="Allow established,relate connections" connection-state=established,related,untracked in-interface=sit1
+add action=accept chain=input comment="Accept ICMP (50/sec)" in-interface=sit1 limit=50,5:packet protocol=icmpv6
+add action=accept chain=input in-interface=bridge protocol=icmpv6
+add action=accept chain=input dst-port=53 in-interface=bridge protocol=udp
+add action=accept chain=input dst-port=53 in-interface=bridge protocol=tcp
+add action=accept chain=input dst-port=547 in-interface=bridge protocol=udp
+add action=log chain=input disabled=yes log-prefix=ipv6
+add action=drop chain=input comment="Block All"
+add action=drop chain=forward comment="drop invalid connections" connection-state=invalid
+add action=accept chain=forward disabled=yes in-interface=sit1 limit=50,5:packet out-interface=bridge protocol=icmpv6
+add action=accept chain=forward comment="Allow established,relate connections" connection-state=established,related,untracked in-interface=sit1 out-interface=bridge
+add action=accept chain=forward in-interface=bridge out-interface=sit1
+add action=log chain=forward disabled=yes log-prefix=ipv6-fw
+add action=drop chain=forward comment="Block All
