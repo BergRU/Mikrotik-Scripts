@@ -1,0 +1,20 @@
+#AltegroSky Universal LTE Reboot Script
+#Script by G.Kolupaev & D.Krivcov
+:local username "username" #Write your user account
+:local scheduleName "lte-checker"
+# warn if schedule does not exist
+:if ([:len [/system scheduler find name="$scheduleName"]] = 0) do={
+  /log warning "[lte-checker] Alert : Schedule does not exist. Creating schedule ...."
+
+ /system scheduler add name=$scheduleName interval=60s start-date=Mar/01/2020 start-time=startup on-event=lte-checker
+
+  /log warning "[lte-checker] Alert : Schedule created ."
+}
+
+# Check account connection and kill LTE + kill user
+:if ([:len [user active find name="$username"]] = 1) do={
+    /log error "SUPERUSER DID REBOOT LTE"
+    /system routerboard usb power-reset duration=600
+    /sys script job remove [find where type=login]
+
+} 
