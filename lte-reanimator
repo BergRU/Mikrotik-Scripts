@@ -1,0 +1,99 @@
+#A set of scripts for maintaining LTE modems in working condition.
+/system scheduler
+add name=start on-event="#sch2 off\r\
+    \n: system scheduler disable sch2;\r\
+    \n: system scheduler enable sch1;" policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
+    start-time=startup
+add disabled=yes interval=7m name=sch1 on-event=": system scheduler enable sch2;\
+    \r\
+    \n\r\
+    \n#HWWD-REGISTERED\r\
+    \n:global LNinterface [/interface lte get [find] name];\r\
+    \n:global pREGISTR \"\";\r\
+    \n:interface lte info \$LNinterface once do={:set pREGISTR \$\"registration-\
+    status\";}\r\
+    \n:if (\$pREGISTR !=\"registered\")  do={\r\
+    \n:log warning \"REBOOT system\";\r\
+    \n\t:interface lte at-chat num=0 input=\"AT+reset\";\r\
+    \n\t:system script job remove numbers=1;\r\
+    \n\t:system reboot;\r\
+    \n\t}" policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
+    start-time=startup
+add interval=3m name=sch2 on-event=": system scheduler disable  sch1;\r\
+    \n\r\
+    \n#HWWD-REGISTERED\r\
+    \n:global LNinterface [/interface lte get [find] name];\r\
+    \n:global pREGISTR \"\";\r\
+    \n:interface lte info \$LNinterface once do={:set pREGISTR \$\"registration-\
+    status\";}\r\
+    \n:if (\$pREGISTR !=\"registered\")  do={\r\
+    \n:log warning \"REBOOT system\";\r\
+    \n\t:interface lte at-chat num=0 input=\"AT+reset\";\r\
+    \n\t:system script job remove numbers=1;\r\
+    \n\t:system reboot;\r\
+    \n\t}" policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
+    start-time=startup
+add interval=15m name=HWWD_R11 on-event=":global wanTrafTx \"0\";\r\
+    \n:global wanTrafTxRes \"0\";\r\
+    \n:global wanTrafRx \"0\";\r\
+    \n:global wanTrafRxRes \"0\";\r\
+    \nfor x from=1 to=5 do={\r\
+    \n\t/interface monitor-traffic lte once do={\r\
+    \n\t\t:global wanTrafTx (tx-bits-per-second / 1024);\r\
+    \n\t}\r\
+    \n\t/interface monitor-traffic lte once do={\r\
+    \n\t\t:global wanTrafRx (rx-bits-per-second / 1024);\r\
+    \n\t}\r\
+    \n\tif (\$wanTrafTx > \$wanTrafTxRes) do={\r\
+    \n\t\t:global wanTrafTxRes \$wanTrafTx;\r\
+    \n\t}\r\
+    \n\tif (\$wanTrafRx > \$wanTrafRxRes) do={\r\
+    \n\t\t:global wanTrafRxRes \$wanTrafRx;\r\
+    \n\t}\r\
+    \n}\r\
+    \n\r\
+    \nif (\$wanTrafTxRes<30 and \$wanTrafRxRes<30) do={\r\
+    \n\t/global pingA [/ping 172.16.10.1  interval=2 size=56 count=10];\r\
+    \n\t/global pingB [/ping 46.160.198.122 interval=2 size=56 count=10];\r\
+    \n\tif (\$pingA=0 && \$pingB=0 ) do={:log warning \"ReB US\";:interface lte \
+    at-chat num=0 input=\"AT+reset\";\r\
+    \n\t:system reboot;}\r\
+    \n}" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive \
+    start-time=startup
+add interval=3m name=ping on-event=": system script run \"ping\";" policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
+    start-time=startup
+add interval=5m name=ReANIMate on-event=": system script run \"REANIMATOR\";" \
+    policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
+    start-time=startup
+/system script
+add dont-require-permissions=no name=REANIMATOR owner=berg policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="#RE\
+    ANIMATOR\r\
+    \n#enter server address\r\
+    \n:global pSERVER 172.16.10.1\r\
+    \n#============================\r\
+    \n:global pREGISTR;\r\
+    \n:global LNinterface [/interface lte get [find] name];\r\
+    \n:interface lte info \$LNinterface once do={:set pREGISTR \$\"registration-\
+    status\";}\r\
+    \n:log warning \$pREGISTR;\r\
+    \n:if (\$pREGISTR =\"registered\")  do={\r\
+    \n:local LANip [/ip address get [find interface=ether1]  address];\r\
+    \n:global pSRCADDRESS [:pick \"\$LANip\" 0 ([:len \$LANip] - 3)];\r\
+    \n:log warn \"Check Cl.Net\"\r\
+    \n:global pingB [/ping \$pSERVER  src-address=\$pSRCADDRESS  interval=2 size\
+    =56 count=5];\r\
+    \n:if (\$pingB=0) do={:log err \"!\";:log warning \"REANIMATOR\";:interface \
+    lte set \$LNinterface;:interface lte set \$LNinterface allow-roaming=no;:int\
+    erface lte set \$LNinterface allow-roaming=yes;}\r\
+    \n}\r\
+    \n"
+add dont-require-permissions=no name=ping owner=cooler policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="\r\
+    \n:global pADRESES [[:pick [/file get flash/LNS.txt contents] 0 16]];\r\
+    \n:if ([:len [system script job find script =\"ping\"]] >1) do={} else={:pin\
+    g \$pADRESES  interval=2 size=56;}"
